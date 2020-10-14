@@ -5,6 +5,12 @@ import os
 import platform
 from playsound import playsound
 from icarus.logging import icarus_logger
+
+import pyttsx3
+
+#import json
+from icarus.Clients.speechToText.vosk_recog import VoskRecognizer
+
 try:
     from icarus.Clients.WakeWordEngines.porcupine import Porcupine
 except OSError:
@@ -25,6 +31,7 @@ class SpeechClient(SuperClient):
         if platform.system() == 'Windows':
             raise OSError
         super().__init__(skill_handler, persistence)
+        self.voskRecog = VoskRecognizer()
 
     def setup(self):
         self.wake_word_handler = Porcupine()
@@ -43,16 +50,26 @@ class SpeechClient(SuperClient):
             os.system(f"mpg123 {os.path.dirname(__file__)}/../resources/pling.mp3 >/dev/null 2>&1")
 
     def stt(self):
-        r = sr.Recognizer()
+        #r = sr.Recognizer()
 
-        with sr.Microphone() as source:
-            r.adjust_for_ambient_noise(source, 0.5)
-            self._play_init()
-            print("Speak:")
-            audio = r.listen(source, timeout=2, phrase_time_limit=4)
+        # with sr.Microphone() as source:
+        #     r.adjust_for_ambient_noise(source, 0.5)
+        #     self._play_init()
+        #     print("Speak:")
+        #     audio = r.listen(source, timeout=2, phrase_time_limit=4)
 
         try:
-            result = r.recognize_google(audio)
+            #result = r.recognize_google(audio)
+
+            #result_json = r.recognize_vosk(audio)
+
+            # result = json.loads(result_json).get("text")
+
+            self._play_init()
+            print("Speak:")
+            result = self.voskRecog.listen_and_recognize()
+
+
             print("You said " + result)
             self._queue_new_message(result)
         except sr.UnknownValueError:
@@ -61,16 +78,27 @@ class SpeechClient(SuperClient):
             print("Could not request results; {0}".format(e))
 
     def send(self, message: str, client_attr):
-        if self.persistence.get_config('SpeechClient', 'morse'):
+        if self.persistence.get_config('SpeechClient', 'morse') == "true":
             message = SpeechClient._message2morse(message)
-        tts = gTTS(text=message, lang='en')
-        tts.save(f"{os.path.dirname(__file__)}/../resources/tts_message.mp3")
-        if platform.system().lower() == 'windows':
-            playsound(f"{os.path.dirname(__file__)}/../resources/tts_message.mp3")
-        else:
-            os.system(f"mpg123 {os.path.dirname(__file__)}/../resources/tts_message.mp3")  # >/dev/null 2>&1")
-        if os.path.isfile(f"{os.path.dirname(__file__)}/../resources/tts_message.mp3"):
-            os.remove(f"{os.path.dirname(__file__)}/../resources/tts_message.mp3")
+
+        #tts = gTTS(text=message, lang='en')
+        #tts.save(f"{os.path.dirname(__file__)}/../resources/tts_message.mp3")
+
+        print("init")
+        engine = pyttsx3.init()
+        print("call")
+        engine.say(message)
+        #engine.setProperty('rate', 120)
+        #engine.setProperty('volume', 0.9)
+        print("execute")
+        engine.runAndWait()
+
+        # if platform.system().lower() == 'windows':
+        #     playsound(f"{os.path.dirname(__file__)}/../resources/tts_message.mp3")
+        # else:
+        #     os.system(f"mpg123 {os.path.dirname(__file__)}/../resources/tts_message.mp3")  # >/dev/null 2>&1")
+        # if os.path.isfile(f"{os.path.dirname(__file__)}/../resources/tts_message.mp3"):
+        #     os.remove(f"{os.path.dirname(__file__)}/../resources/tts_message.mp3")
 
     @staticmethod
     def _message2morse(message):

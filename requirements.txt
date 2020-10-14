@@ -5,10 +5,13 @@ appdirs >= 1.4.4
 python-telegram-bot >= 12.4.2
 gtts>=2.1.1
 pyaudio>=0.2.11
-# FOR WINDOWS pyaudio: pip install pipwin; pipwin install pyaudio
+# FOR WINDOWS pyaudio: pip install pipwin; pipwin install pyaudioe
 # FOR OSX portaudio: brew install portaudio; pip install pyaudio
-SpeechRecognition
-pyttsx3
+
+#SpeechRecognition
+-e git+git://github.com/mytja/speech_recognition@master#egg=SpeechRecognition
+
+pyttsx3==2.71
 playsound>=1.2.2
 pvporcupine>=1.8.6
 
@@ -19,3 +22,5 @@ icalendar >= 4.0.4
 requests>=2.24.0
 mpris2
 dbus-python
+
+vosk
