@@ -1,104 +1,52 @@
 from icarus.Clients.superclient import SuperClient
-import speech_recognition as sr
-from gtts import gTTS
-import os
 import platform
-from playsound import playsound
 from icarus.logging import icarus_logger
 
-import pyttsx3
-
-#import json
-from icarus.Clients.speechToText.vosk_recog import VoskRecognizer
+from icarus.Clients.SpeechToText.speech_to_text import SttSuper
+from icarus.Clients.TextToSpeech.text_to_speech import TtsSuper
 
 try:
     from icarus.Clients.WakeWordEngines.porcupine import Porcupine
 except OSError:
     icarus_logger.warning('Tried using porcupine with windows')
 
-PLING_MP3 = os.path.join(os.path.dirname(__file__), '../resources/pling.mp3')
-
 
 class SpeechClient(SuperClient):
-
-    sensitivity = None
-    handle = None
-    pa = None
-    audio_stream = None
     wake_word_handler = None
 
     def __init__(self, skill_handler, persistence):
         if platform.system() == 'Windows':
             raise OSError
         super().__init__(skill_handler, persistence)
-        self.voskRecog = VoskRecognizer()
+
+        self.stt_type = ""
+        self. tts_type = ""
+        self.stt_engine: SttSuper = None
+        self.tts_engine: TtsSuper = None
 
     def setup(self):
         self.wake_word_handler = Porcupine()
+        # initialize the stt and tts objects
+        self.__update_on_config_change()
 
     def run(self):
         self.setup()
         while True:
             self.wake_word_handler.monitor_audio(self.stt)
 
-    @staticmethod
-    def _play_init():
-        try:
-            playsound(PLING_MP3)
-        except ModuleNotFoundError:
-            # arch has a problem with python-gobject, using mpg123 as fallback
-            os.system(f"mpg123 {os.path.dirname(__file__)}/../resources/pling.mp3 >/dev/null 2>&1")
-
     def stt(self):
-        #r = sr.Recognizer()
+        self.__update_on_config_change()
+        result = self.stt_engine.listen_and_recognize()
 
-        # with sr.Microphone() as source:
-        #     r.adjust_for_ambient_noise(source, 0.5)
-        #     self._play_init()
-        #     print("Speak:")
-        #     audio = r.listen(source, timeout=2, phrase_time_limit=4)
-
-        try:
-            #result = r.recognize_google(audio)
-
-            #result_json = r.recognize_vosk(audio)
-
-            # result = json.loads(result_json).get("text")
-
-            self._play_init()
-            print("Speak:")
-            result = self.voskRecog.listen_and_recognize()
-
-
-            print("You said " + result)
-            self._queue_new_message(result)
-        except sr.UnknownValueError:
-            print("Could not understand audio")
-        except sr.RequestError as e:
-            print("Could not request results; {0}".format(e))
+        print("You said " + result)
+        self._queue_new_message(result)
 
     def send(self, message: str, client_attr):
+        self.__update_on_config_change()
+
         if self.persistence.get_config('SpeechClient', 'morse') == "true":
             message = SpeechClient._message2morse(message)
-
-        #tts = gTTS(text=message, lang='en')
-        #tts.save(f"{os.path.dirname(__file__)}/../resources/tts_message.mp3")
-
-        print("init")
-        engine = pyttsx3.init()
-        print("call")
-        engine.say(message)
-        #engine.setProperty('rate', 120)
-        #engine.setProperty('volume', 0.9)
-        print("execute")
-        engine.runAndWait()
-
-        # if platform.system().lower() == 'windows':
-        #     playsound(f"{os.path.dirname(__file__)}/../resources/tts_message.mp3")
-        # else:
-        #     os.system(f"mpg123 {os.path.dirname(__file__)}/../resources/tts_message.mp3")  # >/dev/null 2>&1")
-        # if os.path.isfile(f"{os.path.dirname(__file__)}/../resources/tts_message.mp3"):
-        #     os.remove(f"{os.path.dirname(__file__)}/../resources/tts_message.mp3")
+        self.tts_engine.tts(message)
 
     @staticmethod
     def _message2morse(message):
@@ -129,3 +77,21 @@ class SpeechClient(SuperClient):
         morse = morse.replace('.', "Beep")
         morse = morse.replace('_', "Beeeeeeep")
         return morse
+
+    def __update_on_config_change(self):
+        config_stt_type = self.persistence.get_config("SpeechClient", "stt")
+        config_tts_type = self.persistence.get_config("SpeechClient", "tts")
+
+        if self.stt_type != config_stt_type:
+            self.set_stt_recognizer(config_stt_type)
+
+        if self.tts_type != config_tts_type:
+            self.set_tts(config_tts_type)
+
+    def set_stt_recognizer(self, recognizer_type):
+        self.stt_type = recognizer_type
+        self.stt_engine = SttSuper.create_recognizer(recognizer_type)
+
+    def set_tts(self, tts_type):
+        self.tts_type = tts_type
+        self.tts_engine = TtsSuper.create_tts(tts_type)
